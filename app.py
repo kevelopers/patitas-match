@@ -12,7 +12,7 @@ class PetProfile:
     children_friendly: bool
 
 
-class SimpleIAMatcher:
+class SimpleAIMatcher:
     def predict_adoption_score(self, profile: PetProfile) -> float:
         score = 0.35
         score += min(max(profile.energy_level, 1), 5) * 0.1
@@ -23,13 +23,13 @@ class SimpleIAMatcher:
 
 def create_app() -> Flask:
     app = Flask(__name__)
-    matcher = SimpleIAMatcher()
+    matcher = SimpleAIMatcher()
 
     @app.get("/")
     def home():
         return {
             "project": "patitas-match",
-            "message": "Flask IA service is running",
+            "message": "Flask AI service is running",
             "endpoints": ["/predict"],
         }
 
@@ -65,4 +65,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()

@@ -1,6 +1,6 @@
 # patitas-match
 
-Minimal Flask project with IA (simple matching score model) for pet adoption profiles.
+Minimal Flask project with AI (simple matching score model) for pet adoption profiles.
 
 ## Requirements
 
@@ -21,7 +21,7 @@ python app.py
 Service endpoints:
 
 - `GET /` health/info
-- `POST /predict` IA score prediction
+- `POST /predict` AI score prediction
 
 Example payload:
 
