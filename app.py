@@ -55,9 +55,9 @@ def create_app() -> Flask:
             isinstance(energy_level, int)
             and not isinstance(energy_level, bool)
             and (
-            SimpleAIMatcher.MIN_ENERGY_LEVEL
-            <= energy_level
-            <= SimpleAIMatcher.MAX_ENERGY_LEVEL
+                SimpleAIMatcher.MIN_ENERGY_LEVEL
+                <= energy_level
+                <= SimpleAIMatcher.MAX_ENERGY_LEVEL
             )
         )
         valid_booleans = isinstance(apartment_friendly, bool) and isinstance(
