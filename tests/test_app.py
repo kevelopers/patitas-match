@@ -3,7 +3,7 @@ import unittest
 from app import create_app
 
 
-class FlaskIATests(unittest.TestCase):
+class FlaskAITests(unittest.TestCase):
     def setUp(self):
         self.app = create_app().test_client()
 
