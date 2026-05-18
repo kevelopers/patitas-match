@@ -30,8 +30,16 @@ class FlaskAITests(unittest.TestCase):
         self.assertLessEqual(body["adoption_score"], 1)
 
     def test_predict_validates_payload(self):
-        response = self.app.post("/predict", json={"energy_level": "high"})
-        self.assertEqual(response.status_code, 400)
+        invalid_payloads = [
+            {"energy_level": "high", "apartment_friendly": True, "children_friendly": True},
+            {"energy_level": 3, "apartment_friendly": "true", "children_friendly": True},
+            {"energy_level": 8, "apartment_friendly": True, "children_friendly": True},
+            {"energy_level": 3, "apartment_friendly": True},
+        ]
+        for payload in invalid_payloads:
+            with self.subTest(payload=payload):
+                response = self.app.post("/predict", json=payload)
+                self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

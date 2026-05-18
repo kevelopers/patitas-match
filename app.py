@@ -47,13 +47,21 @@ def create_app() -> Flask:
     @app.post("/predict")
     def predict():
         payload = request.get_json(silent=True) or {}
-        try:
-            profile = PetProfile(
-                energy_level=int(payload["energy_level"]),
-                apartment_friendly=bool(payload["apartment_friendly"]),
-                children_friendly=bool(payload["children_friendly"]),
-            )
-        except (KeyError, TypeError, ValueError):
+        energy_level = payload.get("energy_level")
+        apartment_friendly = payload.get("apartment_friendly")
+        children_friendly = payload.get("children_friendly")
+
+        valid_energy = isinstance(energy_level, int) and not isinstance(energy_level, bool)
+        valid_energy = valid_energy and (
+            SimpleAIMatcher.MIN_ENERGY_LEVEL
+            <= energy_level
+            <= SimpleAIMatcher.MAX_ENERGY_LEVEL
+        )
+        valid_booleans = isinstance(apartment_friendly, bool) and isinstance(
+            children_friendly, bool
+        )
+
+        if not (valid_energy and valid_booleans):
             return (
                 jsonify(
                     {
@@ -65,6 +73,11 @@ def create_app() -> Flask:
                 ),
                 400,
             )
+        profile = PetProfile(
+            energy_level=energy_level,
+            apartment_friendly=apartment_friendly,
+            children_friendly=children_friendly,
+        )
 
         score = matcher.predict_adoption_score(profile)
         return jsonify({"adoption_score": score})
