@@ -48,9 +48,11 @@ def create_app() -> Flask:
         apartment_friendly = payload.get("apartment_friendly")
         children_friendly = payload.get("children_friendly")
 
+        energy_is_integer = isinstance(energy_level, int) and not isinstance(
+            energy_level, bool
+        )
         valid_energy = (
-            isinstance(energy_level, int)
-            and not isinstance(energy_level, bool)
+            energy_is_integer
             and (
                 SimpleAIMatcher.MIN_ENERGY_LEVEL
                 <= energy_level
@@ -66,8 +68,9 @@ def create_app() -> Flask:
                 jsonify(
                     {
                         "error": (
-                            "Invalid payload. Required fields: energy_level, "
-                            "apartment_friendly, children_friendly."
+                            "Invalid payload. Required fields: energy_level "
+                            "(integer between 1 and 5), apartment_friendly "
+                            "(boolean), children_friendly (boolean)."
                         )
                     }
                 ),
