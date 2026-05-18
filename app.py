@@ -51,11 +51,14 @@ def create_app() -> Flask:
         apartment_friendly = payload.get("apartment_friendly")
         children_friendly = payload.get("children_friendly")
 
-        valid_energy = isinstance(energy_level, int) and not isinstance(energy_level, bool)
-        valid_energy = valid_energy and (
+        valid_energy = (
+            isinstance(energy_level, int)
+            and not isinstance(energy_level, bool)
+            and (
             SimpleAIMatcher.MIN_ENERGY_LEVEL
             <= energy_level
             <= SimpleAIMatcher.MAX_ENERGY_LEVEL
+            )
         )
         valid_booleans = isinstance(apartment_friendly, bool) and isinstance(
             children_friendly, bool
@@ -89,4 +92,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=False)
