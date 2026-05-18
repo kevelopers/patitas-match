@@ -13,11 +13,22 @@ class PetProfile:
 
 
 class SimpleAIMatcher:
+    BASE_SCORE = 0.35
+    MIN_ENERGY_LEVEL = 1
+    MAX_ENERGY_LEVEL = 5
+    ENERGY_WEIGHT = 0.1
+    APARTMENT_WEIGHT = 0.15
+    CHILDREN_WEIGHT = 0.15
+
     def predict_adoption_score(self, profile: PetProfile) -> float:
-        score = 0.35
-        score += min(max(profile.energy_level, 1), 5) * 0.1
-        score += 0.15 if profile.apartment_friendly else 0.0
-        score += 0.15 if profile.children_friendly else 0.0
+        """Return a score in [0, 1] from a lightweight rule-based AI model."""
+        score = self.BASE_SCORE
+        score += (
+            min(max(profile.energy_level, self.MIN_ENERGY_LEVEL), self.MAX_ENERGY_LEVEL)
+            * self.ENERGY_WEIGHT
+        )
+        score += self.APARTMENT_WEIGHT if profile.apartment_friendly else 0.0
+        score += self.CHILDREN_WEIGHT if profile.children_friendly else 0.0
         return min(round(score, 2), 1.0)
 
 
