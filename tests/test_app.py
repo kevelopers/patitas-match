@@ -34,6 +34,7 @@ class TestPredictEndpoint(unittest.TestCase):
             {"energy_level": "high", "apartment_friendly": True, "children_friendly": True},
             {"energy_level": 3, "apartment_friendly": "true", "children_friendly": True},
             {"energy_level": 8, "apartment_friendly": True, "children_friendly": True},
+            {"energy_level": 0, "apartment_friendly": True, "children_friendly": True},
             {"energy_level": 3, "apartment_friendly": True},
         ]
         for payload in invalid_payloads:
