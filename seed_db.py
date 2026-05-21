@@ -85,6 +85,34 @@ def insert_tester_records(db: Session) -> None:
     db.add(preferences)
 
 
+def insert_rescue_records(db: Session) -> None:
+    user_id = "user_tester_2026"
+
+    reports = [
+        RescueReport(
+            reporter_id=user_id,
+            location="Sabana Grande | Perrito asustado cerca del bulevar. Parece tener collar pero no veo placa de identificación.",
+            ai_tags="perro, pequeño, asustado",
+        ),
+        RescueReport(
+            reporter_id=user_id,
+            location="Bello Monte | Gatito atrapado, los bomberos ya vienen en camino.",
+            ai_tags="gato, rescate_activo",
+        ),
+        RescueReport(
+            reporter_id=user_id,
+            location="La Candelaria | Encontramos a este perrito vagando por la plaza. Ya está a salvo en el refugio esperando a sus dueños.",
+            ai_tags="perro, mediano, a_salvo",
+        ),
+        RescueReport(
+            reporter_id=user_id,
+            location="La Florida | Actualización del caso de ayer: Rocky está recuperándose súper bien. Pronto estará listo para adopción.",
+            ai_tags="perro, recuperación, refugio",
+        ),
+    ]
+    db.add_all(reports)
+
+
 def execute_seeding_process() -> None:
     reset_database_schema()
     db = SessionLocal()
@@ -92,6 +120,7 @@ def execute_seeding_process() -> None:
     try:
         insert_foundation_records(db)
         insert_tester_records(db)
+        insert_rescue_records(db)
         db.commit()
         logging.info("Database schema reset and successfully seeded.")
     except Exception as error:
