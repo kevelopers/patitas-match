@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal, engine, Base
 from app.models.user import User, UserPreference
 from app.models.animal import Animal
-from app.services.match_service import build_match_stack
+from app.models.match import Match, Rejection
+from app.services.match_service import get_user_match_stack
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -29,6 +30,8 @@ def create_animals(db: Session, foundation_id: str) -> list[Animal]:
             animal_type="dog",
             size="large",
             energy_level="high",
+            age="adult",
+            status="available",
         ),
         Animal(
             foundation_id=foundation_id,
@@ -36,6 +39,8 @@ def create_animals(db: Session, foundation_id: str) -> list[Animal]:
             animal_type="dog",
             size="small",
             energy_level="low",
+            age="puppy",
+            status="available",
         ),
         Animal(
             foundation_id=foundation_id,
@@ -43,6 +48,8 @@ def create_animals(db: Session, foundation_id: str) -> list[Animal]:
             animal_type="dog",
             size="medium",
             energy_level="high",
+            age="adult",
+            status="available",
         ),
     ]
     db.add_all(animals)
@@ -61,10 +68,14 @@ def create_adopter(db: Session, user_id: str, name: str, phone: str) -> User:
 
 
 def create_preference(
-    db: Session, user_id: str, size: str, energy: str, yard: bool
+    db: Session, user_id: str, sizes: list, energies: list, ages: list, yard: bool
 ) -> UserPreference:
     preference = UserPreference(
-        user_id=user_id, preferred_size=size, preferred_energy=energy, has_yard=yard
+        user_id=user_id,
+        preferred_size=sizes,
+        preferred_energy=energies,
+        preferred_age=ages,
+        has_yard=yard,
     )
     db.add(preference)
     db.commit()
@@ -74,6 +85,12 @@ def create_preference(
 
 def clean_up_data(db: Session, user_ids: list[str], animal_ids: list[int]) -> None:
     if animal_ids:
+        db.query(Match).filter(Match.animal_id.in_(animal_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(Rejection).filter(Rejection.animal_id.in_(animal_ids)).delete(
+            synchronize_session=False
+        )
         db.query(Animal).filter(Animal.id.in_(animal_ids)).delete(
             synchronize_session=False
         )
@@ -94,7 +111,7 @@ def execute_simulation() -> None:
     inserted_animals = []
 
     try:
-        logger.info("Initializing test data injection.")
+        logger.info("Initializing comprehensive match test routing.")
 
         f_id = "foundation_hope_01"
         create_foundation(db, f_id)
@@ -103,29 +120,47 @@ def execute_simulation() -> None:
         animals = create_animals(db, f_id)
         inserted_animals.extend([int(str(a.id)) for a in animals])
 
-        a_match_id = "user_jane_doe"
-        create_adopter(db, a_match_id, "Jane Doe", "555-0002")
-        inserted_users.append(a_match_id)
-        create_preference(db, a_match_id, "small", "low", False)
+        tester_id = "user_jane_doe"
+        create_adopter(db, tester_id, "Jane Doe", "555-0002")
+        inserted_users.append(tester_id)
+        create_preference(
+            db,
+            tester_id,
+            ["small", "medium"],
+            ["low", "high"],
+            ["puppy", "adult"],
+            False,
+        )
 
-        a_no_match_id = "user_john_smith"
-        create_adopter(db, a_no_match_id, "John Smith", "555-0003")
-        inserted_users.append(a_no_match_id)
-        create_preference(db, a_no_match_id, "giant", "lazy", False)
+        logger.info("CASE 1: Requesting base configuration stack matching preferences.")
+        initial_stack = get_user_match_stack(db, tester_id)
+        logger.info(f"Total entries fetched: {len(initial_stack)}")
 
-        logger.info("--- STARTING CASE 1: MATCH SCENARIO ---")
-        matches = build_match_stack(db, a_match_id)
-        logger.info(f"Total matches found for {a_match_id}: {len(matches)}")
-        for match in matches:
-            logger.info(
-                f"MATCH DATA | Name: {match['name']} | Score: {match['match_score']}"
-            )
+        target_match_animal_id = initial_stack[0]["id"]
+        logger.info(
+            f"CASE 2: Persisting positive connection interaction (Match) for animal ID: {target_match_animal_id}"
+        )
+        simulated_match = Match(user_id=tester_id, animal_id=target_match_animal_id)
+        db.add(simulated_match)
+        db.commit()
 
-        logger.info("--- STARTING CASE 2: NO MATCH SCENARIO ---")
-        no_matches = build_match_stack(db, a_no_match_id)
-        logger.info(f"Total matches found for {a_no_match_id}: {len(no_matches)}")
-        if not no_matches:
-            logger.info("System correctly filtered out all incompatible animals.")
+        post_match_stack = get_user_match_stack(db, tester_id)
+        logger.info(
+            f"Remaining entries after match constraint: {len(post_match_stack)}"
+        )
+
+        target_reject_animal_id = post_match_stack[0]["id"]
+        logger.info(
+            f"CASE 3: Persisting negative skip interaction (Rejection) for animal ID: {target_reject_animal_id}"
+        )
+        simulated_rejection = Rejection(
+            user_id=tester_id, animal_id=target_reject_animal_id
+        )
+        db.add(simulated_rejection)
+        db.commit()
+
+        final_stack = get_user_match_stack(db, tester_id)
+        logger.info(f"Final pipeline stack entries remaining: {len(final_stack)}")
 
     finally:
         logger.info("Initiating database cleanup routine.")

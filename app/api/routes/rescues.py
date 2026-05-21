@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.rescue import RescueReport
+from app.services.llm.factory import LLMFactory
 
 router = APIRouter()
 
@@ -98,7 +99,7 @@ def get_all_active_rescue_reports(db: Session = Depends(get_database_session)):
                 "location": display_location,
                 "timeAgo": calculate_dynamic_time_ago(report.created_at),
                 "imageUrl": final_image_url
-                or "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=800",
+                or "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800",
                 "description": display_description,
                 "tags": processed_tags,
                 "status": "pending",
@@ -119,61 +120,17 @@ def create_rescue_report(
     image: UploadFile = File(...),
     db: Session = Depends(get_database_session),
 ):
-    text_to_analyze = location.lower()
-    file_name_to_analyze = image.filename.lower() if image.filename else ""
+    image_bytes = image.file.read()
+    image.file.seek(0)
 
-    allowed_animals = {
-        "perro",
-        "perrito",
-        "can",
-        "canino",
-        "dog",
-        "puppy",
-        "gato",
-        "gatito",
-        "felino",
-        "cat",
-        "kitten",
-        "pájaro",
-        "ave",
-        "conejo",
-        "mascota",
-    }
-    forbidden_keywords = {
-        "humano",
-        "persona",
-        "hombre",
-        "mujer",
-        "niño",
-        "ficticio",
-        "dragón",
-        "unicornio",
-    }
+    mime_type = image.content_type or "image/jpeg"
+    llm_provider = LLMFactory.get_provider()
+    ai_result = llm_provider.validate_rescue_content(image_bytes, mime_type, location)
 
-    has_valid_animal = any(
-        animal in text_to_analyze or animal in file_name_to_analyze
-        for animal in allowed_animals
-    )
-    has_forbidden_content = any(
-        forbidden in text_to_analyze or forbidden in file_name_to_analyze
-        for forbidden in forbidden_keywords
-    )
-
-    if not has_valid_animal or has_forbidden_content:
+    if not ai_result.get("valid", False):
         return {"status": "rejected", "id": None, "ai_tags": "INVALID_CONTENT"}
 
-    mock_ai_tags = "perro, callejero, resguardado"
-    if (
-        "gato" in text_to_analyze
-        or "gatito" in text_to_analyze
-        or "cat" in text_to_analyze
-    ):
-        mock_ai_tags = "gato, rescate_activo"
-    elif "asustado" in text_to_analyze:
-        mock_ai_tags = "perro, pequeño, asustado"
-    elif "recuperación" in text_to_analyze:
-        mock_ai_tags = "perro, recuperación, refugio"
-
+    chosen_tags = ai_result.get("tags", "perro, callejero")
     unique_filename = f"{int(datetime.now().timestamp())}_{image.filename}"
     file_relative_path = f"/{UPLOAD_DIR}/{unique_filename}"
     file_absolute_path = os.path.join(UPLOAD_DIR, unique_filename)
@@ -187,7 +144,7 @@ def create_rescue_report(
     new_report = RescueReport(
         reporter_id=reporter_id,
         location=location,
-        ai_tags=mock_ai_tags,
+        ai_tags=chosen_tags,
         image_url=file_relative_path,
         likes_count=0,
     )
@@ -199,5 +156,5 @@ def create_rescue_report(
     return {
         "status": "created",
         "id": new_report.id,
-        "ai_tags": mock_ai_tags,
+        "ai_tags": chosen_tags,
     }

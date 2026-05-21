@@ -1,3 +1,28 @@
+import os
+import logging
+from dotenv import load_dotenv
+
+load_dotenv()
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+
+def verify_environment_bootstrap() -> None:
+    api_key = os.getenv("GEMINI_API_KEY", "empty_api_key")
+    if api_key == "empty_api_key":
+        logger.error("====================================================")
+        logger.error("APPLICATION BOOTSTRAP WARNING: GEMINI_API_KEY IS EMPTY")
+        logger.error("Please verify your local .env configuration file.")
+        logger.error("====================================================")
+    else:
+        logger.info("Application environment verified successfully.")
+
+
+verify_environment_bootstrap()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

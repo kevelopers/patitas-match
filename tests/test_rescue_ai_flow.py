@@ -1,11 +1,12 @@
 import logging
 import io
+from unittest.mock import MagicMock, patch
 from PIL import Image
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal, engine, Base
 from app.models.user import User
 from app.models.rescue import RescueReport
-from app.ai.analyzer import process_rescue_image
+from app.services.llm.factory import LLMFactory
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -28,9 +29,9 @@ def create_reporter(db: Session, user_id: str) -> User:
     return reporter
 
 
-def cleanup_ai_test(db: Session, user_id: str, report_id: int) -> None:
-    if report_id:
-        db.query(RescueReport).filter(RescueReport.id == report_id).delete(
+def cleanup_ai_test(db: Session, user_id: str, report_ids: list[int]) -> None:
+    if report_ids:
+        db.query(RescueReport).filter(RescueReport.id.in_(report_ids)).delete(
             synchronize_session=False
         )
 
@@ -44,42 +45,57 @@ def execute_ai_simulation() -> None:
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     test_user_id = "user_ai_tester_01"
-    report_id = None
+    inserted_reports = []
 
     try:
-        logger.info("Initializing AI test environment.")
+        logger.info("Initializing multi-layer LLM provider testing schema.")
         create_reporter(db, test_user_id)
-
-        logger.info("Generating synthetic image byte stream.")
         image_data = generate_synthetic_image()
 
-        logger.info(
-            "Triggering AI Vision Model. (Note: Model will download on first execution)"
-        )
-        ai_tags = process_rescue_image(image_data)
-        logger.info(f"AI Analysis Complete. Extracted Tags: [{ai_tags}]")
+        mock_provider = MagicMock()
+        mock_provider.validate_rescue_content.side_effect = [
+            {"valid": True, "tags": "perro, asustado, mediano"},
+            {"valid": False, "tags": "INVALID_CONTENT"},
+        ]
 
-        logger.info("Simulating database insertion for Rescue Report.")
-        new_report = RescueReport(
-            reporter_id=test_user_id,
-            location="Parque del Este, Caracas",
-            ai_tags=ai_tags,
-            status="pending",
-        )
-        db.add(new_report)
-        db.commit()
-        db.refresh(new_report)
+        with patch.object(LLMFactory, "get_provider", return_value=mock_provider):
+            current_provider = LLMFactory.get_provider()
 
-        report_id = int(str(new_report.id))
-        logger.info(
-            f"Database insertion successful. Report ID: {report_id} | Status: {new_report.status}"
-        )
+            logger.info("CASE 1: Submitting legitimate animal rescue dataset.")
+            valid_response = current_provider.validate_rescue_content(
+                image_data, "image/jpeg", "Sabana Grande | Perrito herido"
+            )
+
+            if valid_response.get("valid"):
+                success_report = RescueReport(
+                    reporter_id=test_user_id,
+                    location="Sabana Grande | Perrito herido",
+                    ai_tags=valid_response.get("tags"),
+                    image_url="/static/uploads/test_dog.jpg",
+                    likes_count=0,
+                )
+                db.add(success_report)
+                db.commit()
+                db.refresh(success_report)
+                inserted_reports.append(int(str(success_report.id)))
+                logger.info(
+                    f"Legitimate report safely committed with ID: {success_report.id}"
+                )
+
+            logger.info("CASE 2: Submitting anomalous household item dataset (Lamp).")
+            invalid_response = current_provider.validate_rescue_content(
+                image_data, "image/jpeg", "Bello Monte | Lampara vieja"
+            )
+
+            if not invalid_response.get("valid"):
+                logger.info(
+                    "System layer successfully caught and rejected anomalous item upload scenario."
+                )
 
     finally:
-        logger.info("Cleaning up AI test data.")
-        if report_id is not None:
-            cleanup_ai_test(db, test_user_id, report_id)
-        logger.info("Test entities safely purged. Database clean.")
+        logger.info("Cleaning up AI pipeline test metadata references.")
+        cleanup_ai_test(db, test_user_id, inserted_reports)
+        logger.info("AI Test entities cleanly synchronized and purged.")
         db.close()
 
 
