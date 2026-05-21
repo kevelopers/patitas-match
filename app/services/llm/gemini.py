@@ -2,6 +2,7 @@ import os
 import base64
 import json
 import logging
+import time
 import requests
 from typing import Dict, Any
 from app.services.llm.base import LLMProvider
@@ -33,13 +34,21 @@ class GeminiProvider(LLMProvider):
 
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         prompt = (
-            "Analyze the provided image and text description. "
-            "Determine if the visual subject is a real, live animal (e.g., dog, cat, bird, rabbit). "
-            "Strictly reject inanimate objects, furniture, humans, or fictional creatures. "
-            "Context text from reporter: " + text_content + "\n"
-            "Return a valid JSON object matching exactly this schema: "
-            '{"valid": true, "tags": "perro, callejero, resguardado"} or '
-            '{"valid": false, "tags": "INVALID_CONTENT"}. '
+            "Analyze the provided image and text description.\n"
+            "Determine if the visual subject is a real, live animal (e.g., dog, cat, bird, rabbit).\n"
+            "Strictly reject inanimate objects, furniture, humans, or fictional creatures.\n"
+            "Context text from reporter: " + text_content + "\n\n"
+            "If valid, generate exactly up to 3 tags in Spanish, separated by commas. "
+            "Do not be overly literal. If a tag is a compound word or consists of multiple words, "
+            "format it strictly using camelCase (e.g., 'rescateActivo', 'enElCampo'). "
+            "Single-word tags must be entirely lowercase.\n\n"
+            "Follow this structural pattern strictly:\n"
+            "1. First tag: Animal identification (e.g., 'perro', 'gato', 'ave').\n"
+            "2. Second tag: Animal's situation (e.g., 'callejero', 'perdido', 'rescateActivo').\n"
+            "3. Third tag: Any other convenient contextual tag summarizing the environment or state (e.g., 'asustado', 'enElCampo', 'resguardado').\n\n"
+            "Return a valid JSON object matching exactly this schema:\n"
+            '{"valid": true, "tags": "perro, callejero, asustado"} or \n'
+            '{"valid": false, "tags": "INVALID_CONTENT"}.\n'
             "Do not include markdown formatting or wrappers."
         )
 
@@ -57,25 +66,46 @@ class GeminiProvider(LLMProvider):
 
         headers = {"Content-Type": "application/json"}
 
-        try:
-            response = requests.post(self.url, json=payload, headers=headers)
-            logger.info(f"Gemini API Response Status: {response.status_code}")
+        max_retries = 3
+        initial_delay = 2
 
-            if response.status_code != 200:
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(self.url, json=payload, headers=headers)
+                logger.info(f"Gemini API Response Status: {response.status_code}")
+
+                if response.status_code == 200:
+                    result_json = response.json()
+                    text_response = result_json["candidates"][0]["content"]["parts"][0][
+                        "text"
+                    ]
+                    logger.info(f"Gemini API Raw Text Response: {text_response}")
+
+                    cleaned_text = self._clean_json_response(text_response)
+                    parsed_response = json.loads(cleaned_text)
+                    return parsed_response
+
+                if response.status_code in {429, 503} and attempt < max_retries - 1:
+                    sleep_time = initial_delay * (2**attempt)
+                    logger.warning(
+                        f"Transient error {response.status_code} encountered. Retrying in {sleep_time} seconds..."
+                    )
+                    time.sleep(sleep_time)
+                    continue
+
                 logger.error(f"Gemini API Error Payload: {response.text}")
                 return {"valid": False, "tags": "INVALID_CONTENT"}
 
-            result_json = response.json()
-            text_response = result_json["candidates"][0]["content"]["parts"][0]["text"]
-            logger.info(f"Gemini API Raw Text Response: {text_response}")
+            except Exception as error:
+                logger.error(
+                    f"Failed to process Gemini response workflow on attempt {attempt + 1}: {str(error)}"
+                )
+                if attempt < max_retries - 1:
+                    time.sleep(initial_delay * (2**attempt))
+                    continue
+                return {"valid": False, "tags": "INVALID_CONTENT"}
 
-            cleaned_text = self._clean_json_response(text_response)
-            parsed_response = json.loads(cleaned_text)
-            return parsed_response
-
-        except Exception as error:
-            logger.error(f"Failed to process Gemini response workflow: {str(error)}")
-            return {"valid": False, "tags": "INVALID_CONTENT"}
+        return {"valid": False, "tags": "INVALID_CONTENT"}
 
     def _clean_json_response(self, raw_text: str) -> str:
         cleaned = raw_text.strip()
