@@ -6,14 +6,31 @@ import io
 class ImageAnalyzer:
     def __init__(self):
         self.classifier = pipeline(
-            "image-classification", model="google/vit-base-patch16-224"
+            "zero-shot-image-classification", model="openai/clip-vit-base-patch32"
         )
 
     def analyze_image(self, image_bytes: bytes) -> str:
         image = Image.open(io.BytesIO(image_bytes))
-        results = self.classifier(image)
-        tags = [result["label"] for result in results[:3]]
-        return ", ".join(tags)
+        labels = [
+            "a dog",
+            "a cat",
+            "an animal",
+            "human food",
+            "a car",
+            "a person",
+            "an object",
+        ]
+
+        results = self.classifier(image, candidate_labels=labels)
+
+        top_label = results[0]["label"]
+        score = results[0]["score"]
+        animal_labels = ["a dog", "a cat", "an animal"]
+
+        if top_label not in animal_labels and score > 0.6:
+            return "INVALID_CONTENT"
+
+        return top_label.replace("a ", "")
 
 
 analyzer_instance = ImageAnalyzer()

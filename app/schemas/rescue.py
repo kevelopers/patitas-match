@@ -1,10 +1,11 @@
 from pydantic import BaseModel, ConfigDict
+from datetime import datetime
 from typing import Optional
 
 
 class RescueReportBase(BaseModel):
+    reporter_id: str
     location: str
-    ai_tags: Optional[str] = None
 
 
 class RescueReportCreate(RescueReportBase):
@@ -13,7 +14,9 @@ class RescueReportCreate(RescueReportBase):
 
 class RescueReportResponse(RescueReportBase):
     id: int
-    reporter_id: int
-    rescuer_id: Optional[int] = None
-    status: str
+    image_url: Optional[str] = None
+    ai_tags: Optional[str] = None
+    status: Optional[str] = None
+    created_at: Optional[datetime] = None
+
     model_config = ConfigDict(from_attributes=True)

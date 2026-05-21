@@ -1,62 +1,100 @@
+from typing import Any, Dict, List, Set
 from sqlalchemy.orm import Session
 from app.models.user import UserPreference
 from app.models.animal import Animal
-from typing import List, Dict, Any, Optional
+from app.models.match import Match, Rejection
 
 
-def get_user_preferences(db: Session, user_id: str) -> Optional[UserPreference]:
-    return db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+def _extract_preference_set(preferences: UserPreference, attribute: str) -> Set[str]:
+    value = getattr(preferences, attribute, [])
+    if isinstance(value, list):
+        return set(value)
+    return set()
 
 
-def fetch_candidate_animals(db: Session) -> List[Animal]:
-    return db.query(Animal).filter(Animal.status == "available").all()
+def _check_yard_availability(preferences: UserPreference) -> bool:
+    return getattr(preferences, "has_yard", False) is True
 
 
-def calculate_score(preference: UserPreference, animal: Animal) -> int:
+def _calculate_compatibility_score(
+    animal: Animal,
+    target_sizes: Set[str],
+    target_energies: Set[str],
+    target_ages: Set[str],
+    has_yard: bool,
+) -> int:
     score = 0
-    pref_size = str(preference.preferred_size)
-    anim_size = str(animal.size)
-    pref_energy = str(preference.preferred_energy)
-    anim_energy = str(animal.energy_level)
-    has_yard = bool(preference.has_yard)
+    animal_size = str(getattr(animal, "size", ""))
+    animal_energy = str(getattr(animal, "energy_level", ""))
+    animal_age = str(getattr(animal, "age", ""))
 
-    if pref_size == anim_size:
-        score += 40
+    if animal_size in target_sizes:
+        score += 30
 
-    if pref_energy == anim_energy:
-        score += 40
+    if animal_energy in target_energies:
+        score += 30
 
-    if has_yard:
-        score += 20
-    elif anim_size == "small" and anim_energy == "low":
+    if animal_age and animal_age in target_ages:
         score += 20
 
-    return score
+    if animal_energy == "high":
+        if has_yard:
+            score += 20
+        else:
+            score -= 20
+
+    return max(0, min(100, score + 20))
 
 
-def build_match_stack(db: Session, user_id: str) -> List[Dict[str, Any]]:
-    preference = get_user_preferences(db, user_id)
-    if not preference:
-        return []
+def get_user_match_stack(db: Session, user_id: str) -> List[Dict[str, Any]]:
+    preferences = (
+        db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+    )
+    available_animals = db.query(Animal).filter(Animal.status == "available").all()
 
-    candidates = fetch_candidate_animals(db)
-    match_results = []
+    existing_matches = db.query(Match).filter(Match.user_id == user_id).all()
+    existing_rejections = db.query(Rejection).filter(Rejection.user_id == user_id).all()
 
-    for animal in candidates:
-        score = calculate_score(preference, animal)
-        if score >= 60:
-            match_results.append(
+    excluded_animal_ids = {interaction.animal_id for interaction in existing_matches}
+    excluded_animal_ids.update(rejection.animal_id for rejection in existing_rejections)
+
+    if not preferences:
+        fallback_results = []
+        for animal in available_animals:
+            if animal.id in excluded_animal_ids:
+                continue
+            fallback_results.append(
                 {
-                    "id": int(str(animal.id)),
-                    "foundation_id": str(animal.foundation_id),
-                    "name": str(animal.name),
-                    "animal_type": str(animal.animal_type),
-                    "size": str(animal.size),
-                    "energy_level": str(animal.energy_level),
-                    "status": str(animal.status),
-                    "match_score": score,
+                    "id": getattr(animal, "id", ""),
+                    "name": getattr(animal, "name", ""),
+                    "size": getattr(animal, "size", ""),
+                    "energy_level": getattr(animal, "energy_level", ""),
+                    "match_score": 50,
                 }
             )
+        return fallback_results
 
-    match_results.sort(key=lambda x: x["match_score"], reverse=True)
+    target_sizes = _extract_preference_set(preferences, "preferred_size")
+    target_energies = _extract_preference_set(preferences, "preferred_energy")
+    target_ages = _extract_preference_set(preferences, "preferred_age")
+    has_yard = _check_yard_availability(preferences)
+
+    match_results = []
+    for animal in available_animals:
+        if animal.id in excluded_animal_ids:
+            continue
+        score = _calculate_compatibility_score(
+            animal, target_sizes, target_energies, target_ages, has_yard
+        )
+        match_results.append(
+            {
+                "id": getattr(animal, "id", ""),
+                "name": getattr(animal, "name", ""),
+                "size": getattr(animal, "size", ""),
+                "energy_level": getattr(animal, "energy_level", ""),
+                "match_score": score,
+            }
+        )
+
+    match_results.sort(key=lambda item: item["match_score"], reverse=True)
     return match_results

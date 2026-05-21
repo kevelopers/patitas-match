@@ -18,7 +18,7 @@ app.add_middleware(
 
 app.include_router(users.router)
 app.include_router(animals.router)
-app.include_router(match.router)
+app.include_router(match.router, prefix="/matches", tags=["Matches"])
 app.include_router(rescues.router)
 
 

@@ -1,11 +1,12 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
+from typing import List, Optional
 
 
 class UserPreferenceBase(BaseModel):
-    preferred_size: str
-    preferred_energy: str
-    has_yard: bool
+    preferred_size: List[str] = []
+    preferred_energy: List[str] = []
+    preferred_age: List[str] = []
+    has_yard: bool = False
 
 
 class UserPreferenceCreate(UserPreferenceBase):
@@ -13,7 +14,6 @@ class UserPreferenceCreate(UserPreferenceBase):
 
 
 class UserPreferenceResponse(UserPreferenceBase):
-    id: int
     user_id: str
     model_config = ConfigDict(from_attributes=True)
 
@@ -30,6 +30,5 @@ class UserCreate(UserBase):
 
 
 class UserResponse(UserBase):
-    id: str
-    preference: Optional[UserPreferenceResponse] = None
+    preferences: Optional[UserPreferenceResponse] = None
     model_config = ConfigDict(from_attributes=True)
