@@ -7,9 +7,14 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(String, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True, nullable=True)
     role = Column(String, nullable=False)
     name = Column(String, nullable=False)
-    phone = Column(String)
+    phone = Column(String, nullable=True)
+    size_preference = Column(String, nullable=True)
+    energy_preference = Column(String, nullable=True)
+    stage_preference = Column(String, nullable=True)
+    has_yard = Column(Boolean, default=False)
 
     preferences = relationship("UserPreference", back_populates="user", uselist=False)
     animals = relationship("Animal", back_populates="foundation")

@@ -2,7 +2,8 @@ import os
 import shutil
 from datetime import datetime, timezone
 from typing import Any
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models.rescue import RescueReport
@@ -12,6 +13,10 @@ router = APIRouter()
 
 UPLOAD_DIR = "static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+class StatusUpdateSchema(BaseModel):
+    status: str
 
 
 def get_database_session():
@@ -25,10 +30,8 @@ def get_database_session():
 def calculate_dynamic_time_ago(created_at: Any) -> str:
     if created_at is None:
         return "Reciente"
-
     if not isinstance(created_at, datetime):
         return "Reciente"
-
     if created_at.tzinfo is None:
         created_at = created_at.replace(tzinfo=timezone.utc)
 
@@ -38,15 +41,12 @@ def calculate_dynamic_time_ago(created_at: Any) -> str:
 
     if total_seconds < 60:
         return "Hace un momento"
-
     total_minutes = total_seconds // 60
     if total_minutes < 60:
         return f"Hace {int(total_minutes)} min"
-
     total_hours = total_minutes // 60
     if total_hours < 24:
         return f"Hace {int(total_hours)} horas"
-
     return created_at.strftime("%d/%m/%Y")
 
 
@@ -68,9 +68,7 @@ def get_all_active_rescue_reports(db: Session = Depends(get_database_session)):
         display_description = location_tokens[1] if len(location_tokens) > 1 else ""
 
         raw_tags = str(report.ai_tags) if report.ai_tags is not None else "alerta"
-        processed_tags = [
-            tag.strip().lower() for tag in raw_tags.split(",") if tag.strip()
-        ]
+        processed_tags = [tag.strip() for tag in raw_tags.split(",") if tag.strip()]
 
         reporter_user = report.reporter
         author_name = (
@@ -91,6 +89,11 @@ def get_all_active_rescue_reports(db: Session = Depends(get_database_session)):
             else saved_path
         )
 
+        if not saved_path:
+            final_image_url = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800"
+
+        current_status = getattr(report, "status", "pending") or "pending"
+
         feed_items.append(
             {
                 "id": f"report_{report.id}",
@@ -98,11 +101,10 @@ def get_all_active_rescue_reports(db: Session = Depends(get_database_session)):
                 "authorAvatar": author_avatar,
                 "location": display_location,
                 "timeAgo": calculate_dynamic_time_ago(report.created_at),
-                "imageUrl": final_image_url
-                or "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800",
+                "imageUrl": final_image_url,
                 "description": display_description,
                 "tags": processed_tags,
-                "status": "pending",
+                "status": current_status,
                 "likeCount": (
                     report.likes_count if report.likes_count is not None else 0
                 ),
@@ -110,6 +112,61 @@ def get_all_active_rescue_reports(db: Session = Depends(get_database_session)):
         )
 
     return feed_items
+
+
+@router.post("/rescues/{report_id}/status")
+@router.post("/rescues/{report_id}/status/")
+def update_rescue_report_status(
+    report_id: int,
+    payload: StatusUpdateSchema,
+    db: Session = Depends(get_database_session),
+):
+    report = db.query(RescueReport).filter(RescueReport.id == report_id).first()
+    if not report:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report record missing",
+        )
+
+    new_status = payload.status
+    setattr(report, "status", new_status)
+
+    raw_tags = str(report.ai_tags) if report.ai_tags is not None else ""
+    tags_list = [t.strip() for t in raw_tags.split(",") if t.strip()]
+
+    filtered_tags = [
+        t
+        for t in tags_list
+        if t.lower()
+        not in {
+            "pendiente",
+            "enrescate",
+            "rescatado",
+            "enrefugio",
+            "adoptado",
+            "nolocalizado",
+        }
+    ]
+
+    if new_status == "in_progress":
+        filtered_tags.append("enRescate")
+    elif new_status == "rescued":
+        filtered_tags.append("rescatado")
+    elif new_status == "in_shelter":
+        filtered_tags.append("enRefugio")
+    elif new_status == "adopted":
+        filtered_tags.append("adoptado")
+    elif new_status == "not_found":
+        filtered_tags.append("noLocalizado")
+
+    setattr(report, "ai_tags", ", ".join(filtered_tags))
+    db.commit()
+
+    return {
+        "status": "success",
+        "new_status": new_status,
+        "updated_tags": filtered_tags,
+    }
 
 
 @router.post("/rescues")
@@ -144,9 +201,10 @@ def create_rescue_report(
     new_report = RescueReport(
         reporter_id=reporter_id,
         location=location,
-        ai_tags=chosen_tags,
         image_url=file_relative_path,
+        ai_tags=chosen_tags,
         likes_count=0,
+        status="pending",
     )
 
     db.add(new_report)
@@ -158,3 +216,39 @@ def create_rescue_report(
         "id": new_report.id,
         "ai_tags": chosen_tags,
     }
+
+
+@router.post("/rescues/{report_id}/like")
+@router.post("/rescues/{report_id}/like/")
+def register_rescue_report_like(
+    report_id: int, db: Session = Depends(get_database_session)
+):
+    report = db.query(RescueReport).filter(RescueReport.id == report_id).first()
+    if not report:
+        return {"status": "rejected", "message": "Report record missing"}
+
+    raw_likes = getattr(report, "likes_count", 0)
+    current_likes = int(raw_likes) if raw_likes is not None else 0
+
+    setattr(report, "likes_count", current_likes + 1)
+    db.commit()
+
+    return {"status": "success", "likes_count": report.likes_count}
+
+
+@router.post("/rescues/{report_id}/unlike")
+@router.post("/rescues/{report_id}/unlike/")
+def register_rescue_report_unlike(
+    report_id: int, db: Session = Depends(get_database_session)
+):
+    report = db.query(RescueReport).filter(RescueReport.id == report_id).first()
+    if not report:
+        return {"status": "rejected", "message": "Report record missing"}
+
+    raw_likes = getattr(report, "likes_count", 0)
+    current_likes = int(raw_likes) if raw_likes is not None else 0
+
+    setattr(report, "likes_count", max(0, current_likes - 1))
+    db.commit()
+
+    return {"status": "success", "likes_count": report.likes_count}

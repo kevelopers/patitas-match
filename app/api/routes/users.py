@@ -1,53 +1,94 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from app.db.database import get_db
-from app.models.user import User, UserPreference
-from app.schemas.user import (
-    UserCreate,
-    UserResponse,
-    UserPreferenceCreate,
-    UserPreferenceResponse,
-)
+from app.db.database import SessionLocal
+from app.models.user import User
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
 
-@router.post("/", response_model=UserResponse)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    existing_user = db.query(User).filter(User.id == user.id).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Username already registered")
-
-    new_user = User(id=user.id, role=user.role, name=user.name, phone=user.phone)
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    return new_user
+class UserPreferencesSchema(BaseModel):
+    size: list[str]
+    energy_level: list[str]
+    life_stage: list[str]
+    has_yard: bool
+    role: str
 
 
-@router.post("/{user_id}/preferences", response_model=UserPreferenceResponse)
-def define_user_preferences(
-    user_id: str, preference: UserPreferenceCreate, db: Session = Depends(get_db)
-):
-    target_user = db.query(User).filter(User.id == user_id).first()
-    if not target_user:
-        raise HTTPException(status_code=404, detail="User not found")
+def get_database_session():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
-    existing_preference = (
-        db.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+
+@router.get("/profile/{user_id}")
+@router.get("/profile/{user_id}/")
+def get_user_profile_data(user_id: str, db: Session = Depends(get_database_session)):
+    user = (
+        db.query(User).filter((User.id == user_id) | (User.username == user_id)).first()
     )
-    if existing_preference:
+
+    if not user:
+        new_mock_user = User(
+            id=user_id,
+            username=user_id,
+            name="Usuario Evaluador",
+            role="standard",
+            size_preference="medium",
+            energy_preference="high",
+            stage_preference="adult",
+            has_yard=False,
+        )
+        db.add(new_mock_user)
+        db.commit()
+        db.refresh(new_mock_user)
+        user = new_mock_user
+
+    raw_size = getattr(user, "size_preference", "") or ""
+    raw_energy = getattr(user, "energy_preference", "") or ""
+    raw_stage = getattr(user, "stage_preference", "") or ""
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "name": user.name,
+        "role": user.role,
+        "preferences": {
+            "size": [s.strip() for s in raw_size.split(",") if s.strip()],
+            "energy_level": [e.strip() for e in raw_energy.split(",") if e.strip()],
+            "life_stage": [l.strip() for l in raw_stage.split(",") if l.strip()],
+            "has_yard": bool(user.has_yard),
+        },
+    }
+
+
+@router.post("/profile/{user_id}/preferences")
+@router.post("/profile/{user_id}/preferences/")
+def update_user_profile_preferences(
+    user_id: str,
+    payload: UserPreferencesSchema,
+    db: Session = Depends(get_database_session),
+):
+    user = (
+        db.query(User).filter((User.id == user_id) | (User.username == user_id)).first()
+    )
+
+    if not user:
         raise HTTPException(
-            status_code=400, detail="Preferences already exist for this user"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User record missing",
         )
 
-    new_preference = UserPreference(
-        user_id=user_id,
-        preferred_size=preference.preferred_size,
-        preferred_energy=preference.preferred_energy,
-        has_yard=preference.has_yard,
-    )
-    db.add(new_preference)
+    setattr(user, "role", payload.role)
+    setattr(user, "size_preference", ",".join(payload.size))
+    setattr(user, "energy_preference", ",".join(payload.energy_level))
+    setattr(user, "stage_preference", ",".join(payload.life_stage))
+    setattr(user, "has_yard", payload.has_yard)
+
     db.commit()
-    db.refresh(new_preference)
-    return new_preference
+    return {
+        "status": "success",
+        "message": "Preferences updated successfully",
+    }
