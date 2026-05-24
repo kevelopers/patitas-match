@@ -23,6 +23,15 @@ def get_database_session():
         db.close()
 
 
+@router.get("/foundations")
+@router.get("/foundations/")
+def get_all_allied_foundations(db: Session = Depends(get_database_session)):
+    foundations = (
+        db.query(User).filter(User.role == "foundation").order_by(User.name.asc()).all()
+    )
+    return [{"id": f.id, "name": f.name} for f in foundations]
+
+
 @router.get("/profile/{user_id}")
 @router.get("/profile/{user_id}/")
 def get_user_profile_data(user_id: str, db: Session = Depends(get_database_session)):

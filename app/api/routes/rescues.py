@@ -1,7 +1,7 @@
 import os
 import shutil
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -17,6 +17,8 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 class StatusUpdateSchema(BaseModel):
     status: str
+    allied_foundation_id: Optional[str] = None
+    external_shelter_details: Optional[str] = None
 
 
 def get_database_session():
@@ -84,13 +86,10 @@ def get_all_active_rescue_reports(db: Session = Depends(get_database_session)):
 
         saved_path = str(report.image_url) if report.image_url is not None else ""
         final_image_url = (
-            f"http://localhost:8000{saved_path}"
-            if saved_path.startswith("/static")
-            else saved_path
+            f"http://localhost:8000/{saved_path.lstrip('/')}"
+            if saved_path
+            else "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800"
         )
-
-        if not saved_path:
-            final_image_url = "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800"
 
         current_status = getattr(report, "status", "pending") or "pending"
 
@@ -130,6 +129,10 @@ def update_rescue_report_status(
 
     new_status = payload.status
     setattr(report, "status", new_status)
+
+    if new_status == "in_shelter":
+        setattr(report, "allied_foundation_id", payload.allied_foundation_id)
+        setattr(report, "external_shelter_details", payload.external_shelter_details)
 
     raw_tags = str(report.ai_tags) if report.ai_tags is not None else ""
     tags_list = [t.strip() for t in raw_tags.split(",") if t.strip()]
