@@ -5,7 +5,7 @@ from app.db.database import SessionLocal, engine, Base
 from app.models.user import User, UserPreference
 from app.models.animal import Animal, AnimalFollowUpLog
 from app.models.rescue import RescueReport
-from app.models.match import Match, Rejection
+from app.core.security import get_password_hash
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 
@@ -18,9 +18,12 @@ def reset_database_schema() -> None:
 
 
 def insert_user_records(db: Session) -> None:
+    default_hashed_password = get_password_hash("password123")
+
     standard_user = User(
         id="user_tester_2026",
         username="user_tester_2026",
+        hashed_password=default_hashed_password,
         role="standard",
         name="Usuario Evaluador",
         phone="555-0002",
@@ -33,6 +36,7 @@ def insert_user_records(db: Session) -> None:
     rescuer_user = User(
         id="rescuer_tester_2026",
         username="rescuer_tester_2026",
+        hashed_password=default_hashed_password,
         role="rescuer",
         name="Rescatista Independiente",
         phone="555-0003",
@@ -45,6 +49,7 @@ def insert_user_records(db: Session) -> None:
     foundation_user = User(
         id="foundation_01",
         username="foundation_tester_2026",
+        hashed_password=default_hashed_password,
         role="foundation",
         name="Refugio Esperanza",
         phone="584125799911",
@@ -60,9 +65,9 @@ def insert_user_records(db: Session) -> None:
 
     standard_preferences = UserPreference(
         user_id="user_tester_2026",
-        preferred_size=["medium", "large", "small"],
-        preferred_energy=["high", "medium", "low"],
-        preferred_age=["adult", "young", "senior"],
+        preferred_size=["medium"],
+        preferred_energy=["high"],
+        preferred_age=["adult"],
         has_yard=True,
     )
     db.add(standard_preferences)
@@ -126,19 +131,19 @@ def insert_animal_records(db: Session) -> None:
         description="Juguetón, le gusta socializar con otros perritos y niños.",
     )
 
-    animal_coco = Animal(
+    animal_loki = Animal(
         foundation_id=foundation_id,
-        name="Coco",
+        name="Loki",
         animal_type="Perro",
         size="small",
-        energy_level="high",
-        age="adult",
+        energy_level="low",
+        age="senior",
         status="available",
-        description="Muy activo y enérgico, ideal para salir a hacer ejercicio.",
+        description="Perrito senior que busca paz. Tiene índice bajo, al deslizar a la derecha fallará el match por baja afinidad.",
     )
 
     db.add_all(
-        [animal_max, animal_bella, animal_rocky, animal_kira, animal_toby, animal_coco]
+        [animal_max, animal_bella, animal_rocky, animal_kira, animal_toby, animal_loki]
     )
     db.flush()
 

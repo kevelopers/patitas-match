@@ -7,6 +7,7 @@ from app.db.database import SessionLocal, engine, Base
 from app.models.user import User
 from app.models.rescue import RescueReport
 from app.services.llm.factory import LLMFactory
+from app.core.security import get_password_hash
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -22,7 +23,13 @@ def generate_synthetic_image() -> bytes:
 
 
 def create_reporter(db: Session, user_id: str) -> User:
-    reporter = User(id=user_id, role="standard", name="AI Tester", phone="555-0004")
+    reporter = User(
+        id=user_id,
+        role="standard",
+        name="AI Tester",
+        phone="555-0004",
+        hashed_password=get_password_hash("password123"),
+    )
     db.add(reporter)
     db.commit()
     db.refresh(reporter)
@@ -37,7 +44,6 @@ def cleanup_ai_test(db: Session, user_id: str, report_ids: list[int]) -> None:
 
     if user_id:
         db.query(User).filter(User.id == user_id).delete(synchronize_session=False)
-
     db.commit()
 
 

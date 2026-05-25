@@ -1,4 +1,12 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text
+from sqlalchemy import (
+    Column,
+    String,
+    Integer,
+    DateTime,
+    ForeignKey,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from app.db.database import Base
@@ -20,4 +28,21 @@ class RescueReport(Base):
 
     reporter = relationship(
         "User", back_populates="reported_rescues", foreign_keys=[reporter_id]
+    )
+    likes = relationship(
+        "RescueLike", back_populates="report", cascade="all, delete-orphan"
+    )
+
+
+class RescueLike(Base):
+    __tablename__ = "rescue_likes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    report_id = Column(Integer, ForeignKey("rescue_reports.id"), nullable=False)
+
+    report = relationship("RescueReport", back_populates="likes")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "report_id", name="unique_user_report_like"),
     )

@@ -8,6 +8,7 @@ from app.db.database import SessionLocal
 from app.models.animal import Animal, AnimalFollowUpLog
 from app.models.match import Match, Rejection
 from app.models.user import User
+from app.core.security import get_authenticated_user
 
 router = APIRouter(prefix="/animals", tags=["Animals"])
 
@@ -44,26 +45,30 @@ def save_profile_picture_stream(image_file: UploadFile) -> str:
 
 def calculate_animal_affinity_score(user: User, animal: Animal) -> int:
     score = 0
+    raw_size_preference = str(getattr(user, "size_preference", "") or "")
+    raw_energy_preference = str(getattr(user, "energy_preference", "") or "")
+    raw_stage_preference = str(getattr(user, "stage_preference", "") or "")
 
     user_sizes = [
-        s.strip().lower() for s in (user.size_preference or "").split(",") if s.strip()
+        s.strip().lower() for s in raw_size_preference.split(",") if s.strip()
     ]
     user_energies = [
-        e.strip().lower()
-        for e in (user.energy_preference or "").split(",")
-        if e.strip()
+        e.strip().lower() for e in raw_energy_preference.split(",") if e.strip()
     ]
     user_stages = [
-        l.strip().lower() for l in (user.stage_preference or "").split(",") if l.strip()
+        l.strip().lower() for l in raw_stage_preference.split(",") if l.strip()
     ]
 
-    if str(animal.size).lower() in user_sizes:
-        score += 33
-    if str(animal.energy_level).lower() in user_energies:
-        score += 33
-    if str(animal.age).lower() in user_stages:
-        score += 34
+    animal_size = str(getattr(animal, "size", "")).lower()
+    animal_energy = str(getattr(animal, "energy_level", "")).lower()
+    animal_age = str(getattr(animal, "age", "")).lower()
 
+    if animal_size in user_sizes:
+        score += 33
+    if animal_energy in user_energies:
+        score += 33
+    if animal_age in user_stages:
+        score += 34
     return score
 
 
@@ -88,8 +93,8 @@ def get_foundation_animals(
             .order_by(AnimalFollowUpLog.id.desc())
             .all()
         )
-
-        saved_path = str(animal.image_url) if animal.image_url is not None else None
+        raw_image_url = getattr(animal, "image_url", None)
+        saved_path = str(raw_image_url) if raw_image_url is not None else None
 
         result.append(
             {
@@ -114,26 +119,28 @@ def get_foundation_animals(
                 ],
             }
         )
-
     return result
 
 
-@router.get("/discovery/{user_id}")
-@router.get("/discovery/{user_id}/")
-def get_discovery_cards(user_id: str, db: Session = Depends(get_database_session)):
-    user = (
-        db.query(User).filter((User.id == user_id) | (User.username == user_id)).first()
-    )
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
+@router.get("/discovery")
+@router.get("/discovery/")
+def get_discovery_cards(
+    db: Session = Depends(get_database_session),
+    current_user: User = Depends(get_authenticated_user),
+):
+    if str(getattr(current_user, "role", "")) == "foundation":
+        return []
 
     matched_ids = [
-        m[0] for m in db.query(Match.animal_id).filter(Match.user_id == user.id).all()
+        m[0]
+        for m in db.query(Match.animal_id)
+        .filter(Match.user_id == current_user.id)
+        .all()
     ]
     rejected_ids = [
         r[0]
         for r in db.query(Rejection.animal_id)
-        .filter(Rejection.user_id == user.id)
+        .filter(Rejection.user_id == current_user.id)
         .all()
     ]
     excluded_ids = set(matched_ids + rejected_ids)
@@ -146,8 +153,9 @@ def get_discovery_cards(user_id: str, db: Session = Depends(get_database_session
     cards = []
 
     for animal in available_animals:
-        saved_path = str(animal.image_url) if animal.image_url is not None else None
-        affinity = calculate_animal_affinity_score(user, animal)
+        raw_image_url = getattr(animal, "image_url", None)
+        saved_path = str(raw_image_url) if raw_image_url is not None else None
+        affinity = calculate_animal_affinity_score(current_user, animal)
 
         cards.append(
             {
@@ -162,7 +170,6 @@ def get_discovery_cards(user_id: str, db: Session = Depends(get_database_session
                 "match_score": affinity,
             }
         )
-
     return cards
 
 
@@ -239,46 +246,46 @@ def update_animal_profile(
 @router.post("/{animal_id}/match/")
 def register_animal_match(
     animal_id: int,
-    user_id: str = "user_tester_2026",
     db: Session = Depends(get_database_session),
+    current_user: User = Depends(get_authenticated_user),
 ):
-    user = (
-        db.query(User).filter((User.id == user_id) | (User.username == user_id)).first()
-    )
     animal = db.query(Animal).filter(Animal.id == animal_id).first()
+    if animal is None:
+        raise HTTPException(status_code=404, detail="Animal missing")
 
-    if user is None or animal is None:
-        raise HTTPException(status_code=404, detail="Records missing")
-
-    affinity = calculate_animal_affinity_score(user, animal)
+    affinity = calculate_animal_affinity_score(current_user, animal)
 
     if affinity < 60:
         existing_reject = (
             db.query(Rejection)
-            .filter(Rejection.user_id == user.id, Rejection.animal_id == animal_id)
+            .filter(
+                Rejection.user_id == current_user.id, Rejection.animal_id == animal_id
+            )
             .first()
         )
         if existing_reject is None:
-            new_rejection = Rejection(user_id=user.id, animal_id=animal_id)
+            new_rejection = Rejection(user_id=current_user.id, animal_id=animal_id)
             db.add(new_rejection)
             db.commit()
         return {"status": "low_affinity", "phone": None}
 
     existing_match = (
         db.query(Match)
-        .filter(Match.user_id == user.id, Match.animal_id == animal_id)
+        .filter(Match.user_id == current_user.id, Match.animal_id == animal_id)
         .first()
     )
-
     if existing_match is None:
-        new_match = Match(user_id=user.id, animal_id=animal_id)
+        new_match = Match(user_id=current_user.id, animal_id=animal_id)
         db.add(new_match)
         db.commit()
 
     foundation_phone = "584125799911"
     owner_foundation = db.query(User).filter(User.id == animal.foundation_id).first()
-    if owner_foundation is not None and owner_foundation.phone is not None:
-        foundation_phone = str(owner_foundation.phone)
+    if (
+        owner_foundation is not None
+        and getattr(owner_foundation, "phone", None) is not None
+    ):
+        foundation_phone = str(getattr(owner_foundation, "phone"))
 
     return {"status": "success", "phone": foundation_phone}
 
@@ -287,26 +294,18 @@ def register_animal_match(
 @router.post("/{animal_id}/reject/")
 def register_animal_rejection(
     animal_id: int,
-    user_id: str = "user_tester_2026",
     db: Session = Depends(get_database_session),
+    current_user: User = Depends(get_authenticated_user),
 ):
-    user = (
-        db.query(User).filter((User.id == user_id) | (User.username == user_id)).first()
-    )
-    if user is None:
-        raise HTTPException(status_code=404, detail="User not found")
-
     existing_reject = (
         db.query(Rejection)
-        .filter(Rejection.user_id == user.id, Rejection.animal_id == animal_id)
+        .filter(Rejection.user_id == current_user.id, Rejection.animal_id == animal_id)
         .first()
     )
-
     if existing_reject is None:
-        new_reject = Rejection(user_id=user.id, animal_id=animal_id)
+        new_reject = Rejection(user_id=current_user.id, animal_id=animal_id)
         db.add(new_reject)
         db.commit()
-
     return {"status": "success"}
 
 

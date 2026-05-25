@@ -5,6 +5,7 @@ from app.models.user import User, UserPreference
 from app.models.animal import Animal
 from app.models.match import Match, Rejection
 from app.services.match_service import get_user_match_stack
+from app.core.security import get_password_hash
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -14,7 +15,11 @@ logger = logging.getLogger(__name__)
 
 def create_foundation(db: Session, user_id: str) -> User:
     foundation = User(
-        id=user_id, role="foundation", name="Hope Shelter", phone="555-0001"
+        id=user_id,
+        role="foundation",
+        name="Hope Shelter",
+        phone="555-0001",
+        hashed_password=get_password_hash("password123"),
     )
     db.add(foundation)
     db.commit()
@@ -60,7 +65,13 @@ def create_animals(db: Session, foundation_id: str) -> list[Animal]:
 
 
 def create_adopter(db: Session, user_id: str, name: str, phone: str) -> User:
-    adopter = User(id=user_id, role="standard", name=name, phone=phone)
+    adopter = User(
+        id=user_id,
+        role="standard",
+        name=name,
+        phone=phone,
+        hashed_password=get_password_hash("password123"),
+    )
     db.add(adopter)
     db.commit()
     db.refresh(adopter)
@@ -100,7 +111,6 @@ def clean_up_data(db: Session, user_ids: list[str], animal_ids: list[int]) -> No
             synchronize_session=False
         )
         db.query(User).filter(User.id.in_(user_ids)).delete(synchronize_session=False)
-
     db.commit()
 
 

@@ -27,8 +27,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.db.database import engine, Base
-import app.models
-from app.api.routes import match, users, animals, rescues
+from app.api.routes import auth, match, users, animals, rescues
 
 Base.metadata.create_all(bind=engine)
 
@@ -44,6 +43,8 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(animals.router)
 app.include_router(match.router, prefix="/matches", tags=["Matches"])
