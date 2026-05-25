@@ -143,6 +143,11 @@ def get_all_active_rescue_reports(
                 ),
                 "hasLiked": has_liked,
                 "rescuerId": rescuer_id,
+                "urgency": getattr(report, "urgency", "medium"),
+                "breedMix": getattr(report, "breed_mix", "Desconocido"),
+                "detectedMood": getattr(report, "detected_mood", "Alerta"),
+                "physicalCondition": getattr(report, "physical_condition", "Estable"),
+                "firstAidAdvice": getattr(report, "first_aid_advice", ""),
             }
         )
     return feed_items
@@ -253,6 +258,14 @@ def create_rescue_report(
         ai_tags=chosen_tags,
         likes_count=0,
         status="pending",
+        urgency=ai_result.get("urgency", "medium"),
+        breed_mix=ai_result.get("breed_mix", "Mezcla Desconocida"),
+        detected_mood=ai_result.get("detected_mood", "Alerta"),
+        physical_condition=ai_result.get("physical_condition", "Estable"),
+        first_aid_advice=ai_result.get(
+            "first_aid_advice",
+            "Mantener distancia segura, no acorralar al animal y proveer agua limpia de ser posible.",
+        ),
     )
     db.add(new_report)
     db.commit()

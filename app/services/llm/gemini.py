@@ -30,7 +30,7 @@ class GeminiProvider(LLMProvider):
         self, image_bytes: bytes, mime_type: str, text_content: str
     ) -> Dict[str, Any]:
         if self.api_key == "empty_api_key":
-            return {"valid": False, "tags": "INVALID_CONTENT"}
+            return self._get_fallback_response(False)
 
         base64_image = base64.b64encode(image_bytes).decode("utf-8")
         prompt = (
@@ -38,18 +38,26 @@ class GeminiProvider(LLMProvider):
             "Determine if the visual subject is a real, live animal (e.g., dog, cat, bird, rabbit).\n"
             "Strictly reject inanimate objects, furniture, humans, or fictional creatures.\n"
             "Context text from reporter: " + text_content + "\n\n"
-            "If valid, generate exactly up to 3 tags in Spanish, separated by commas. "
-            "Do not be overly literal. If a tag is a compound word or consists of multiple words, "
-            "format it strictly using camelCase (e.g., 'rescateActivo', 'enElCampo'). "
-            "Single-word tags must be entirely lowercase.\n\n"
-            "Follow this structural pattern strictly:\n"
-            "1. First tag: Animal identification (e.g., 'perro', 'gato', 'ave').\n"
-            "2. Second tag: Animal's situation (e.g., 'callejero', 'perdido', 'rescateActivo').\n"
-            "3. Third tag: Any other convenient contextual tag summarizing the environment or state (e.g., 'asustado', 'enElCampo', 'resguardado').\n\n"
+            "If valid, analyze and extract the following parameters:\n"
+            "1. tags: Up to 3 tags in Spanish, separated by commas. Single-word entirely lowercase. Compound words in camelCase.\n"
+            "2. urgency: Classify priority strictly as 'low', 'high', or 'critical' based on health state, immediate danger or traffic risk.\n"
+            "3. breed_mix: Best estimate of breed mix or purebred status in Spanish (e.g., 'Mestizo de Poodle', 'Pastor Alemán Mix', 'Mestizo').\n"
+            "4. detected_mood: Current emotional state visible (e.g., 'Asustado', 'Alerta', 'Tranquilo', 'Agresivo').\n"
+            "5. physical_condition: Observed physical health status (e.g., 'Estable', 'Desnutrición leve', 'Herida visible', 'Cojera').\n"
+            "6. first_aid_advice: Short, 2-line practical first aid recommendation in Spanish for the citizen on site.\n\n"
             "Return a valid JSON object matching exactly this schema:\n"
-            '{"valid": true, "tags": "perro, callejero, asustado"} or \n'
-            '{"valid": false, "tags": "INVALID_CONTENT"}.\n'
-            "Do not include markdown formatting or wrappers."
+            "{\n"
+            '  "valid": true,\n'
+            '  "tags": "perro, callejero, asustado",\n'
+            '  "urgency": "high",\n'
+            '  "breed_mix": "Mestizo de Schnauzer",\n'
+            '  "detected_mood": "Asustado",\n'
+            '  "physical_condition": "Estable",\n'
+            '  "first_aid_advice": "Evita movimientos bruscos y no lo arrincones. Ofrécele agua limpia."\n'
+            "}\n"
+            "If the subject is NOT a live animal, return strictly:\n"
+            '{"valid": false, "tags": "INVALID_CONTENT", "urgency": "low", "breed_mix": "N/A", "detected_mood": "N/A", "physical_condition": "N/A", "first_aid_advice": ""}\n'
+            "Do not include markdown formatting or backticks."
         )
 
         payload = {
@@ -65,7 +73,6 @@ class GeminiProvider(LLMProvider):
         }
 
         headers = {"Content-Type": "application/json"}
-
         max_retries = 3
         initial_delay = 2
 
@@ -94,7 +101,7 @@ class GeminiProvider(LLMProvider):
                     continue
 
                 logger.error(f"Gemini API Error Payload: {response.text}")
-                return {"valid": False, "tags": "INVALID_CONTENT"}
+                return self._get_fallback_response(False)
 
             except Exception as error:
                 logger.error(
@@ -103,9 +110,9 @@ class GeminiProvider(LLMProvider):
                 if attempt < max_retries - 1:
                     time.sleep(initial_delay * (2**attempt))
                     continue
-                return {"valid": False, "tags": "INVALID_CONTENT"}
+                return self._get_fallback_response(False)
 
-        return {"valid": False, "tags": "INVALID_CONTENT"}
+        return self._get_fallback_response(False)
 
     def _clean_json_response(self, raw_text: str) -> str:
         cleaned = raw_text.strip()
@@ -114,3 +121,16 @@ class GeminiProvider(LLMProvider):
         elif cleaned.startswith("```"):
             cleaned = cleaned.split("```")[1].split("```")[0].strip()
         return cleaned
+
+    def _get_fallback_response(self, is_valid: bool) -> Dict[str, Any]:
+        return {
+            "valid": is_valid,
+            "tags": (
+                "INVALID_CONTENT" if not is_valid else "animal, resguardado, alerta"
+            ),
+            "urgency": "low",
+            "breed_mix": "Mestizo Desconocido",
+            "detected_mood": "Alerta",
+            "physical_condition": "Estable",
+            "first_aid_advice": "Mantener distancia segura, no acorralar al animal y proveer agua limpia de ser posible.",
+        }

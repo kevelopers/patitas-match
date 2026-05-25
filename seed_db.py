@@ -18,7 +18,7 @@ def reset_database_schema() -> None:
 
 
 def insert_user_records(db: Session) -> None:
-    default_hashed_password = get_password_hash("123")
+    default_hashed_password = get_password_hash("password123")
 
     standard_user = User(
         id="user_tester_2026",
@@ -106,7 +106,7 @@ def insert_animal_records(db: Session) -> None:
         energy_level="low",
         age="young",
         status="available",
-        description="Tranquila, ideal para apartamentos and familias.",
+        description="Tranquila, ideal para apartamentos y familias.",
     )
 
     animal_rocky = Animal(
@@ -139,7 +139,7 @@ def insert_animal_records(db: Session) -> None:
         energy_level="medium",
         age="young",
         status="available",
-        description="Juguetón, le gusta socializar con otros perritos and niños.",
+        description="Juguetón, le gusta socializar con otros perritos y niños.",
     )
 
     animal_loki = Animal(
@@ -180,31 +180,51 @@ def insert_rescue_records(db: Session) -> None:
     reports = [
         RescueReport(
             reporter_id=reporter_id,
-            location="Sabana Grande | Perrito asustado cerca del bulevar. Parece tener collar pero no veo placa de identificación.",
+            location="Sabana Grande | Perrito asustado cerca del bulevar.",
             ai_tags="perro, pequeño, asustado",
             status="pending",
             rescuer_id=None,
+            urgency="low",
+            breed_mix="Schnauzer Mix",
+            detected_mood="Asustado",
+            physical_condition="Estable",
+            first_aid_advice="Evita movimientos bruscos. Coloca un envase con agua a distancia segura y espera el arribo de la unidad de apoyo."
         ),
         RescueReport(
             reporter_id=reporter_id,
-            location="Bello Monte | Gatito atrapado, los bomberos ya vienen en camino.",
+            location="Bello Monte | Gatito atrapado en andamio.",
             ai_tags="gato, enRescate",
             status="in_progress",
             rescuer_id=rescuer_id,
+            urgency="high",
+            breed_mix="Mestizo Común",
+            detected_mood="Ansioso / Alerta",
+            physical_condition="Estable",
+            first_aid_advice="No intentes escalar de manera independiente. Mantén la zona baja despejada y espera el despliegue del cuerpo de rescate asignado."
         ),
         RescueReport(
             reporter_id=reporter_id,
-            location="La Candelaria | Encontramos a este perrito vagando por la plaza. Ya está a salvo en el refugio esperando a sus dueños.",
+            location="La Candelaria | Encontramos a este perrito vagando por la plaza.",
             ai_tags="perro, mediano, resguardado",
             status="rescued",
             rescuer_id=rescuer_id,
+            urgency="low",
+            breed_mix="Poodle Mestizo",
+            detected_mood="Tranquilo",
+            physical_condition="Desnutrición leve",
+            first_aid_advice="El animal ya se encuentra resguardado bajo supervisión directa. Suministrar porciones controladas de alimento balanceado."
         ),
         RescueReport(
             reporter_id=reporter_id,
-            location="La Florida | Alerta de campo solventada. El animal fue trasladado a las instalaciones del aliado.",
+            location="La Florida | Alerta de campo solventada.",
             ai_tags="perro, recuperado, enRefugio",
             status="in_shelter",
             rescuer_id=rescuer_id,
+            urgency="medium",
+            breed_mix="Pastor Alemán Mix",
+            detected_mood="Dócil",
+            physical_condition="Estable",
+            first_aid_advice="Traslado completo de forma exitosa. Se encuentra ingresado en observación protocolar de control físico."
         ),
     ]
     db.add_all(reports)
