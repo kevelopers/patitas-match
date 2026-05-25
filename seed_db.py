@@ -18,11 +18,11 @@ def reset_database_schema() -> None:
 
 
 def insert_user_records(db: Session) -> None:
-    default_hashed_password = get_password_hash("password123")
+    default_hashed_password = get_password_hash("123")
 
     standard_user = User(
         id="user_tester_2026",
-        username="user_tester_2026",
+        username="tester",
         hashed_password=default_hashed_password,
         role="standard",
         name="Usuario Evaluador",
@@ -35,7 +35,7 @@ def insert_user_records(db: Session) -> None:
 
     rescuer_user = User(
         id="rescuer_tester_2026",
-        username="rescuer_tester_2026",
+        username="rescuer",
         hashed_password=default_hashed_password,
         role="rescuer",
         name="Rescatista Independiente",
@@ -48,7 +48,7 @@ def insert_user_records(db: Session) -> None:
 
     foundation_user = User(
         id="foundation_01",
-        username="foundation_tester_2026",
+        username="foundation",
         hashed_password=default_hashed_password,
         role="foundation",
         name="Refugio Esperanza",
