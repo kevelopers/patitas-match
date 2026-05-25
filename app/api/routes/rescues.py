@@ -113,6 +113,7 @@ def get_all_active_rescue_reports(
             else "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800"
         )
         current_status = getattr(report, "status", "pending") or "pending"
+        rescuer_id = getattr(report, "rescuer_id", None)
 
         has_liked = False
         if current_user_id:
@@ -141,6 +142,7 @@ def get_all_active_rescue_reports(
                     report.likes_count if report.likes_count is not None else 0
                 ),
                 "hasLiked": has_liked,
+                "rescuerId": rescuer_id,
             }
         )
     return feed_items
@@ -161,6 +163,16 @@ def update_rescue_report_status(
         )
 
     new_status = payload.status
+
+    if new_status == "in_progress":
+        current_status = str(getattr(report, "status", "pending"))
+        if current_status != "pending":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Este caso ya esta siendo atendido por otro rescatista",
+            )
+        setattr(report, "rescuer_id", current_user.id)
+
     setattr(report, "status", new_status)
 
     if new_status == "in_shelter":

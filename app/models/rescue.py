@@ -22,6 +22,7 @@ class RescueReport(Base):
     image_url = Column(String, nullable=True)
     likes_count = Column(Integer, default=0)
     status = Column(String, default="pending", nullable=False)
+    rescuer_id = Column(String, ForeignKey("users.id"), nullable=True)
     allied_foundation_id = Column(String, ForeignKey("users.id"), nullable=True)
     external_shelter_details = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

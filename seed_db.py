@@ -106,7 +106,7 @@ def insert_animal_records(db: Session) -> None:
         energy_level="low",
         age="young",
         status="available",
-        description="Tranquila, ideal para apartamentos y familias.",
+        description="Tranquila, ideal para apartamentos and familias.",
     )
 
     animal_rocky = Animal(
@@ -139,7 +139,7 @@ def insert_animal_records(db: Session) -> None:
         energy_level="medium",
         age="young",
         status="available",
-        description="Juguetón, le gusta socializar con otros perritos y niños.",
+        description="Juguetón, le gusta socializar con otros perritos and niños.",
     )
 
     animal_loki = Animal(
@@ -175,31 +175,36 @@ def insert_animal_records(db: Session) -> None:
 
 
 def insert_rescue_records(db: Session) -> None:
-    user_id = "user_tester_2026"
+    reporter_id = "user_tester_2026"
+    rescuer_id = "rescuer_tester_2026"
     reports = [
         RescueReport(
-            reporter_id=user_id,
+            reporter_id=reporter_id,
             location="Sabana Grande | Perrito asustado cerca del bulevar. Parece tener collar pero no veo placa de identificación.",
             ai_tags="perro, pequeño, asustado",
             status="pending",
+            rescuer_id=None,
         ),
         RescueReport(
-            reporter_id=user_id,
+            reporter_id=reporter_id,
             location="Bello Monte | Gatito atrapado, los bomberos ya vienen en camino.",
             ai_tags="gato, enRescate",
             status="in_progress",
+            rescuer_id=rescuer_id,
         ),
         RescueReport(
-            reporter_id=user_id,
+            reporter_id=reporter_id,
             location="La Candelaria | Encontramos a este perrito vagando por la plaza. Ya está a salvo en el refugio esperando a sus dueños.",
             ai_tags="perro, mediano, resguardado",
             status="rescued",
+            rescuer_id=rescuer_id,
         ),
         RescueReport(
-            reporter_id=user_id,
+            reporter_id=reporter_id,
             location="La Florida | Alerta de campo solventada. El animal fue trasladado a las instalaciones del aliado.",
             ai_tags="perro, recuperado, enRefugio",
             status="in_shelter",
+            rescuer_id=rescuer_id,
         ),
     ]
     db.add_all(reports)
