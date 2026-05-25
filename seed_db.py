@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.database import SessionLocal, engine, Base
 from app.models.user import User, UserPreference
 from app.models.animal import Animal, AnimalFollowUpLog
-from app.models.rescue import RescueReport
+from app.models.rescue import RescueReport, RescueLike
 from app.core.security import get_password_hash
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -26,7 +26,7 @@ def insert_user_records(db: Session) -> None:
         hashed_password=default_hashed_password,
         role="standard",
         name="Usuario Evaluador",
-        phone="555-0002",
+        phone="584125551122",
         size_preference="medium",
         energy_preference="high",
         stage_preference="adult",
@@ -39,7 +39,7 @@ def insert_user_records(db: Session) -> None:
         hashed_password=default_hashed_password,
         role="rescuer",
         name="Rescatista Independiente",
-        phone="555-0003",
+        phone="584145553344",
         size_preference="small",
         energy_preference="medium",
         stage_preference="young",
@@ -75,6 +75,17 @@ def insert_user_records(db: Session) -> None:
 
 def insert_animal_records(db: Session) -> None:
     foundation_id = "foundation_01"
+
+    animal_draft = Animal(
+        foundation_id=foundation_id,
+        name="Simba",
+        animal_type="Perro",
+        size="small",
+        energy_level="high",
+        age="young",
+        status="draft",
+        description="Cachorro recién ingresado, actualmente en evaluación médica intermedia.",
+    )
 
     animal_max = Animal(
         foundation_id=foundation_id,
@@ -143,14 +154,22 @@ def insert_animal_records(db: Session) -> None:
     )
 
     db.add_all(
-        [animal_max, animal_bella, animal_rocky, animal_kira, animal_toby, animal_loki]
+        [
+            animal_draft,
+            animal_max,
+            animal_bella,
+            animal_rocky,
+            animal_kira,
+            animal_toby,
+            animal_loki,
+        ]
     )
     db.flush()
 
     log_entry = AnimalFollowUpLog(
         animal_id=animal_kira.id,
         title="Control de 1 Mes",
-        text="Adoptante envió fotos. Adaptación exitosa en casa, buena convivencia.",
+        text="Adoptante envió fotos. Adaptación de la mascota exitosa en casa, buena convivencia.",
     )
     db.add(log_entry)
 
@@ -168,19 +187,19 @@ def insert_rescue_records(db: Session) -> None:
             reporter_id=user_id,
             location="Bello Monte | Gatito atrapado, los bomberos ya vienen en camino.",
             ai_tags="gato, enRescate",
-            status="pending",
+            status="in_progress",
         ),
         RescueReport(
             reporter_id=user_id,
             location="La Candelaria | Encontramos a este perrito vagando por la plaza. Ya está a salvo en el refugio esperando a sus dueños.",
-            ai_tags="perro, mediano, enRefugio",
-            status="pending",
+            ai_tags="perro, mediano, resguardado",
+            status="rescued",
         ),
         RescueReport(
             reporter_id=user_id,
-            location="La Florida | Actualización del caso de ayer: Rocky está recuperándose súper bien. Pronto estará listo para adopción.",
-            ai_tags="perro, recuperación, enRefugio",
-            status="pending",
+            location="La Florida | Alerta de campo solventada. El animal fue trasladado a las instalaciones del aliado.",
+            ai_tags="perro, recuperado, enRefugio",
+            status="in_shelter",
         ),
     ]
     db.add_all(reports)
