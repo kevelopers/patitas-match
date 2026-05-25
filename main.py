@@ -35,7 +35,7 @@ app = FastAPI(title="Patitas Match API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://patitas-match-frontend.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,5 +52,5 @@ app.include_router(rescues.router)
 
 
 @app.get("/")
-def read_root():
-    return {"status": "healthy", "application": "Patitas Match API"}
+def check_health():
+    return {"status": "ok", "service": "Patitas Match API is running"}
