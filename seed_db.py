@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 
 def reset_database_schema() -> None:
-    db_path = "./patitas_match.db"
+    db_path = "./static/uploads/patitas_match.db"
     if os.path.exists(db_path):
         os.remove(db_path)
     Base.metadata.create_all(bind=engine)
