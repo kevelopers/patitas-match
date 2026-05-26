@@ -84,11 +84,11 @@ def login_user(
     response.set_cookie(
         key="access_token",
         value=token,
-        httponly=True,
+        httponly=False,
         max_age=86400,
         expires=86400,
-        samesite="lax",
-        secure=False,
+        samesite="none",
+        secure=True,
     )
     return {"status": "success", "role": user.role}
 
