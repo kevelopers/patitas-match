@@ -1,7 +1,7 @@
 import uuid
 import re
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
@@ -63,14 +63,20 @@ def register_user(payload: RegisterSchema, db: Session = Depends(get_database_se
     )
     db.add(new_user)
     db.commit()
-    return {"status": "success", "username": new_user.username}
+
+    token = create_access_token(data={"sub": new_user.id})
+    return {
+        "status": "success",
+        "access_token": token,
+        "username": new_user.username,
+        "role": new_user.role,
+    }
 
 
 @router.post("/login")
 @router.post("/login/")
 def login_user(
     payload: LoginSchema,
-    response: Response,
     db: Session = Depends(get_database_session),
 ):
     user = db.query(User).filter(User.username == payload.username).first()
@@ -81,20 +87,10 @@ def login_user(
         raise HTTPException(status_code=401, detail="Usuario o clave invalida")
 
     token = create_access_token(data={"sub": user.id})
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=False,
-        max_age=86400,
-        expires=86400,
-        samesite="none",
-        secure=True,
-    )
-    return {"status": "success", "role": user.role}
+    return {"status": "success", "access_token": token, "role": user.role}
 
 
 @router.post("/logout")
 @router.post("/logout/")
-def logout_user(response: Response):
-    response.delete_cookie(key="access_token")
+def logout_user():
     return {"status": "success"}
