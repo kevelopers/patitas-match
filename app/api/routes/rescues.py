@@ -81,6 +81,7 @@ def get_all_active_rescue_reports(
 
     reports = db.query(RescueReport).order_by(RescueReport.id.desc()).all()
     feed_items = []
+    base_url = str(request.base_url).rstrip("/")
 
     for report in reports:
         location_data = str(report.location) if report.location is not None else ""
@@ -109,7 +110,7 @@ def get_all_active_rescue_reports(
 
         saved_path = str(report.image_url) if report.image_url is not None else ""
         final_image_url = (
-            f"http://localhost:8000/{saved_path.lstrip('/')}"
+            f"{base_url}/{saved_path.lstrip('/')}"
             if saved_path
             else "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop-60&w=800"
         )
