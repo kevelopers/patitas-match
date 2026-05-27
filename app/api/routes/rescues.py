@@ -70,8 +70,9 @@ def get_all_active_rescue_reports(
     request: Request, db: Session = Depends(get_database_session)
 ):
     current_user_id = None
-    token = request.cookies.get("access_token")
-    if token:
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             current_user_id = payload.get("sub")
